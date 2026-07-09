@@ -1,0 +1,1 @@
+docker compose exec wordpress bash -c "curl -sO https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar && php wp-cli.phar search-replace 'http://REPLACE_IT' 'http://localhost' --all-tables --allow-root"
