@@ -7,6 +7,11 @@ set -e
 : "${OLD_URL:?OLD_URL not set — put it in .env}"
 : "${NEW_URL:?NEW_URL not set — put it in .env}"
 
+if [ "$LOAD_BACKUP" != "true" ]; then
+  echo "[restore] LOAD_BACKUP is not set to 'true'. Skipping fix urls."
+  exit 0
+fi
+
 # Check if either variable is empty, or if they are identical
 if [ -z "$OLD_URL" ] || [ -z "$NEW_URL" ]; then
   echo "[fix-urls] Skipping: OLD_URL or NEW_URL is not set."

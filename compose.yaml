@@ -23,6 +23,20 @@ services:
       retries: 10
       start_period: 40s
 
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: mailpit
+    ports:
+      - "1025:1025" # SMTP server port
+      - "8025:8025" # Web UI port
+    environment:
+      - MP_SMTP_AUTH=testuser:testpassword123
+      - MP_MAX_MESSAGES=500
+    networks:
+      - wpnet
+    command: ["--smtp-auth-allow-insecure"]
+    restart: unless-stopped
+
   # One-shot container: extracts the tarred /var/www/html into the
   # wp_data volume, then exits. wordpress waits for it to finish.
   wp_restore:
@@ -50,6 +64,8 @@ services:
       WORDPRESS_DB_USER: ${DB_USER:-wordpress}
       WORDPRESS_DB_PASSWORD: ${DB_PASSWORD:-wordpress}
       LOAD_BACKUP: ${LOAD_BACKUP:-false}
+      WORDPRESS_CONFIG_EXTRA: |
+        define( 'WP_MEMORY_LIMIT', '512M' );
     volumes:
       - wp_data:/var/www/html
       - ./scripts/fix-urls.sh:/fix-urls.sh:ro
