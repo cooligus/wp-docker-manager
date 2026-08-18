@@ -1,0 +1,8 @@
+FROM mysql:8.0
+
+COPY backups/ /backups/
+COPY scripts/restore-wordpress.sh /restore.sh
+
+RUN chmod +x /restore.sh
+
+ENTRYPOINT ["/bin/sh", "/restore.sh"]

@@ -7,58 +7,64 @@ services:
       MYSQL_DATABASE: ${DB_NAME:-wordpress}
       MYSQL_USER: ${DB_USER:-wordpress}
       MYSQL_PASSWORD: ${DB_PASSWORD:-wordpress}
-      MYSQL_RANDOM_ROOT_PASSWORD: "1"
     volumes:
       - db_data:/var/lib/mysql
-      # Dropped into /docker-entrypoint-initdb.d, mariadb auto-runs any
-      # .sql / .sql.gz found here — but ONLY the very first time the
-      # data dir is empty. Rename your mysqldump to db.sql (or db.sql.gz).
-      - ./backups/db_backup.sql:/docker-entrypoint-initdb.d/db.sql:ro
     networks:
       - wpnet
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p$$MYSQL_ROOT_PASSWORD"]
+      test:
+        [
+          "CMD-SHELL",
+          "mysqladmin ping -h localhost -u root -p\"$$MYSQL_ROOT_PASSWORD\""
+        ]
       interval: 5s
       timeout: 5s
       retries: 10
       start_period: 40s
 
+  backup_restore:
+    build:
+      context: .
+      dockerfile: Dockerfile.restore
+    environment:
+      LOAD_BACKUP: ${LOAD_BACKUP:-false}
+      DB_NAME: ${DB_NAME:-wordpress}
+      DB_USER: ${DB_USER:-wordpress}
+      DB_PASSWORD: ${DB_PASSWORD:-wordpress}
+      DB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-changeme}
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - wp_data:/var/www/html
+    networks:
+      - wpnet
+
   mailpit:
     image: axllent/mailpit:latest
     container_name: mailpit
     ports:
-      - "1025:1025" # SMTP server port
-      - "8025:8025" # Web UI port
+      - "1025:1025"
+      - "8025:8025"
     environment:
-      - MP_SMTP_AUTH=testuser:testpassword123
-      - MP_MAX_MESSAGES=500
+      MP_SMTP_AUTH: testuser:testpassword123
+      MP_MAX_MESSAGES: 500
+    command:
+      - "--smtp-auth-allow-insecure"
     networks:
       - wpnet
-    command: ["--smtp-auth-allow-insecure"]
     restart: unless-stopped
-
-  # One-shot container: extracts the tarred /var/www/html into the
-  # wp_data volume, then exits. wordpress waits for it to finish.
-  wp_restore:
-    image: alpine:3.20
-    environment:
-      LOAD_BACKUP: ${LOAD_BACKUP:-false}
-    volumes:
-      - wp_data:/var/www/html
-      - ./backups/wp_backup.tar.gz:/backups/wp_backup.tar.gz:ro
-      - ./scripts/restore-wordpress.sh:/restore.sh:ro
-    entrypoint: ["/bin/sh", "/restore.sh"]
 
   fix_urls:
     image: wordpress:cli
     depends_on:
       db:
         condition: service_healthy
-      wp_restore:
+      backup_restore:
         condition: service_completed_successfully
     environment:
-      OLD_URL: ${OLD_URL}
-      NEW_URL: ${NEW_URL}
+      OLD_URL: ${OLD_URL:-}
+      NEW_URL: ${NEW_URL:-}
       WORDPRESS_DB_HOST: db
       WORDPRESS_DB_NAME: ${DB_NAME:-wordpress}
       WORDPRESS_DB_USER: ${DB_USER:-wordpress}
@@ -71,15 +77,17 @@ services:
       - ./scripts/fix-urls.sh:/fix-urls.sh:ro
     networks:
       - wpnet
-    entrypoint: ["/bin/sh", "/fix-urls.sh"]
+    entrypoint:
+      - /bin/sh
+      - /fix-urls.sh
 
   wordpress:
-    image: wordpress
+    image: wordpress:latest
     restart: unless-stopped
     depends_on:
       db:
-        condition: service_started
-      wp_restore:
+        condition: service_healthy
+      backup_restore:
         condition: service_completed_successfully
       fix_urls:
         condition: service_completed_successfully
@@ -90,15 +98,6 @@ services:
       WORDPRESS_DB_PASSWORD: ${DB_PASSWORD:-wordpress}
       WORDPRESS_CONFIG_EXTRA: |
         define( 'WP_MEMORY_LIMIT', '512M' );
-    # develop:
-    #   watch:
-    #     - action: sync
-    #       path: ./theme-child
-    #       target: /var/www/html/wp-content/themes/theme-child
-    #       initial_sync: true
-    #       ignore:
-    #         - .git
-    #         - .DS_Store
     volumes:
       - wp_data:/var/www/html
     ports:
