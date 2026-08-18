@@ -1,6 +1,6 @@
 FROM mysql:8.0
 
-COPY backups/ /backups/
+COPY restore/ /backups/
 COPY scripts/restore-wordpress.sh /restore.sh
 
 RUN chmod +x /restore.sh

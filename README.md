@@ -24,9 +24,9 @@ In order to create a new backup just run (don't forget about permissions):
 ./make-backup.sh
 ```
 
-Best way is to have separate path with all backups and just link your backups to `backups` path. 
+Best way is to have separate path with all backups and just copy your backups to `restore` path. 
 
 ```
-ln -s ~/wordpress-backups/random_date backups
+cp backups/random_date/* restore/
 ```
 
